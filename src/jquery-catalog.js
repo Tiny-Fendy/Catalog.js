@@ -41,6 +41,7 @@
     function catalog(element, options) {
         $(element).data('cat', this);
         this.element = $(element);
+        this.speed = "";
         this.options = $.extend({}, defaults, options);
         this.init();
     }
@@ -64,12 +65,11 @@
 
         //导航栏初始化
         containerInit: function () {
-            var self = this,
-                $width = parseInt(self.element.parent().css('width')),
-                $left = parseInt(self.element.parent().css("padding-left")),
-                $right = parseInt(self.element.parent().css("padding-right"));
+            var self = this;
 
-            self.element.css('width', $width - $left - $right + "px").html("");
+            //固定组件宽度，使其不受fixed的影响
+            self.element.css("width", self.element.css("width"));
+            self.element.html("");
 
             if (self.element.prop("class").indexOf("tocify") === -1) {
                 self.element.addClass("tocify");
@@ -82,12 +82,13 @@
 
             self.dataParse(self.options.container, self.options.data, self.element,
                 function ($ele) {
-                    $ele.append("<ul class='tocify-header nav nav-list'></ul>");
-                    return $ele.children("ul").last();
+                    var dom = $("<ul class='tocify-header nav nav-list'></ul>");
+                    $ele.append(dom);
+                    return dom;
                 },
                 function ($ul, $index, $dom, $cur) {
                     $ul.append("<li class='tocify-item' data-selector='" + $cur.item + "' data-id='" + $index + "'>" +
-                        "<a>" + $dom.children($cur.title).text() + "</a></li>");
+                        "<a>" + $dom.find($cur.title).text() + "</a></li>");
                     $dom.attr("data-hash", $index);
                     self.$top[$index] = $dom.offset().top;
                     self.$index++;
@@ -127,7 +128,7 @@
 
                 self.defend = false;
                 self.changeActive(dom);
-                self.scrollSmooth(bindDom.offset().top - 15, $(window).scrollTop(), top);
+                self.scrollSmooth(bindDom.offset().top - 15, top);
             });
         },
 
@@ -137,19 +138,24 @@
 
             self.element.find("li").removeClass("active");
             dom.addClass("active");
+            self.switchOpen(self);
+        },
 
+        //调整目录的展开折叠
+        switchOpen: function (self) {
             $.each(self.element.find("ul").splice(1, self.element.find("ul").length -1), function(i, e) {
                 if ($(e).find(".active").length === 0 && $(e).prev("li").prop("class").indexOf("active") === -1){
-                    $(e).slideUp("ease");
+                    self.animation ? $(e).slideUp("ease") : $(e).hide();
                 } else {
-                    $(e).slideDown("ease");
+                    self.animation ? $(e).slideDown("ease"): $(e).show();
                 }
             });
         },
 
-        scrollSmooth: function (target, flag, top) {
+        scrollSmooth: function (target, top) {
             var self = this,
                 interval,
+                flag = $(window).scrollTop(),
                 distance = target - flag;
 
             if (distance != 0 ) {
@@ -162,6 +168,12 @@
                     } else {
                         flag += distance/20;
                         window.scroll(0, flag);
+
+                        //网页没有卷曲到指定高度,则停止执行
+                        if (Math.abs(flag - $(window).scrollTop()) > 2) {
+                            clearInterval(interval);
+                            self.defend = true;
+                        }
 
                         if (top - flag < 15) {
                             self.element.css({
@@ -201,7 +213,7 @@
                 });
             }
 
-            //方法一：遍历查找对应的目录
+            //遍历查找对应的目录
             self.$top.forEach(function (e, i) {
                 if (i> 0 && self.$top[i + 1] > winTop + 15 && e <= winTop + 15 ) {
                     self.changeActive($(self.element).find("li[data-id='" + i + "']"));
@@ -211,17 +223,6 @@
                     return false;
                 }
             });
-
-            //方法二：遍历节点计算高度
-            /*self.dataParse(self.options.container, self.options.data, self.element, function () {
-                },
-                function ($ul, $index, $dom, $cur) {
-                    var id = $dom.data("hash");
-                    if ($dom.offset().top - winTop <= 50 && $dom.offset().top - winTop >= -50) {
-                        self.changeActive($ul.find("li[data-id='" + id + "']"));
-                    }
-                }
-            );*/
         }
     };
 
@@ -247,6 +248,7 @@
             //重新生成节点
             self.containerInit();
             self.createElement();
+            self.switchOpen(self);
 
         } else if (data === "destroy") {
             self = $(this).data("cat");
