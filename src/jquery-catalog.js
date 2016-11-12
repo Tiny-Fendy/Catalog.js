@@ -9,26 +9,25 @@
 
     if (typeof define === "function" && define.cmd) {
 
-        define(function () {
-
+        define(function (require) {
             fn(jQuery, window);
-
         });
 
     } else if (typeof define === "function" && define.amd) {
 
-        define(['catalog'],fn(jQuery,window));
+        define(['Catalog'],fn(jQuery,window));
 
     } else {
 
-        window.tocify = fn(jQuery, window);
+        window.Catalog = fn(jQuery, window);
 
     }
 
 }(this, function ($, window) {
-
     var defaults = {
         container: 'body',
+        listen: undefined,
+        animation: true,
         data: [
             {
                 item: "",
@@ -37,30 +36,36 @@
         ]
     };
 
+    if ($) {
+        console.error("Catalog: jQuery should be included before jquery-catalog.js!");
+    }
+
     //目录树导航构造函数
-    function catalog(element, options) {
+    function Catalog (element, options) {
         $(element).data('cat', this);
-        this.element = $(element);
+        this.$element = $(element);
         this.speed = "";
         this.options = $.extend({}, defaults, options);
         this.init();
     }
 
-    catalog.prototype = {
+    Catalog.prototype = {
 
         init: function () {
             var self = this;
 
             //初始化变量
-            self.$index = 0;
-            self.$top = [];
+            self.index = 0;
+            self.top = [];
             self.defend = true;
-            self.containTop = self.element.offset().top;
+            self.$scrollDom = self.options.listen ? $(self.options.listen) : $(window);
+            self.exOffsetTop = $(self.options.container).offset().top;
+            self.curScroll = self.options.listen ? self.$scrollDom.scrollTop() : 0;
 
             self.containerInit();
             self.createElement();
-            self.bindEvent(self.containTop);
-            self.winScroll(self.containTop);
+            self.bindEvent();
+            self.winScroll();
         },
 
         //导航栏初始化
@@ -68,11 +73,13 @@
             var self = this;
 
             //固定组件宽度，使其不受fixed的影响
-            self.element.css("width", self.element.css("width"));
-            self.element.html("");
+            window.onload = function () {
+                self.$element.css("width", self.$element.css("width"));
+            };
+            self.$element.html("");
 
-            if (self.element.prop("class").indexOf("tocify") === -1) {
-                self.element.addClass("tocify");
+            if (self.$element.prop("class").indexOf("tocify") === -1) {
+                self.$element.addClass("tocify");
             }
         },
 
@@ -80,105 +87,112 @@
         createElement: function () {
             var self = this;
 
-            self.dataParse(self.options.container, self.options.data, self.element,
+            self.dataParse(self.options.container, self.options.data, self.$element,
                 function ($ele) {
-                    var dom = $("<ul class='tocify-header nav nav-list'></ul>");
-                    $ele.append(dom);
-                    return dom;
+                    var $dom = $("<ul class='tocify-header nav nav-list'></ul>");
+                    $ele.append($dom);
+
+                    return $dom;
                 },
-                function ($ul, $index, $dom, $cur) {
-                    $ul.append("<li class='tocify-item' data-selector='" + $cur.item + "' data-id='" + $index + "'>" +
-                        "<a>" + $dom.find($cur.title).text() + "</a></li>");
-                    $dom.attr("data-hash", $index);
-                    self.$top[$index] = $dom.offset().top;
-                    self.$index++;
+                function ($ul, index, $dom, cur) {
+                    $ul.append("<li class='tocify-item' data-selector='" + cur.item + "' data-id='" + index + "'>" +
+                        "<a>" + $dom.find(cur.title).text() + "</a></li>");
+                    $dom.attr("data-hash", index);
+                    self.top[index] = $dom.offset().top;
+                    self.index++;
                 }
             );
         },
 
-        dataParse: function ($container, $array, $ele, fn1, fn2) {
+        dataParse: function (container, array, $ele, fn1, fn2) {
             var self = this,
-                $localArray = JSON.parse(JSON.stringify($array)),
-                $cur = $localArray.shift(),
+                localArray = JSON.parse(JSON.stringify(array)),
+                cur = localArray.shift(),
                 $ul;
 
             $ul = fn1.call(self, $ele) || $ele;
-            $($container).find($cur.item).each(function (i, d) {
-                var $index = self.$index;
+            $(container).find(cur.item).each(function (i, d) {
+                var index = self.index;
 
-                fn2.call(self, $ul, $index, $(d), $cur);
+                fn2.call(self, $ul, index, $(d), cur);
 
-                if ($localArray.length > 0) {
-                    self.dataParse(d, $localArray, $ul, fn1, fn2);
+                if (localArray.length > 0) {
+                    self.dataParse(d, localArray, $ul, fn1, fn2);
                 }
             });
         },
 
         //目录树事件绑定
-        bindEvent: function (top) {
+        bindEvent: function () {
             var self = this;
 
-            self.scrollEvent(self.element.offset().top);
+            self.scrollEvent(self.$element.parent().parent().offset().top);
 
             //点击跳到对应位置
-            self.element.off("click").on("click", 'li', function () {
-                var dom = $(this),
-                    selector = dom.data("selector") + "[data-hash='" + dom.data("id") + "']",
-                    bindDom = $(self.options.container).find(selector);
+            self.$element.off("click").on("click", 'li', function () {
+                var $dom = $(this),
+                    selector = $dom.data("selector") + "[data-hash='" + $dom.data("id") + "']",
+                    $bindDom = $(self.options.container).find(selector),
+                    bindDomTop = $bindDom.offset().top,
+                    target = self.options.listen ? self.$scrollDom.scrollTop() + bindDomTop - 15 : bindDomTop - 15;
 
                 self.defend = false;
-                self.changeActive(dom);
-                self.scrollSmooth(bindDom.offset().top - 15, top);
+                self.changeActive($dom);
+                self.scrollSmooth(target);
             });
         },
 
         //目录树游标移动
-        changeActive: function (dom) {
+        changeActive: function ($dom) {
             var self = this;
 
-            self.element.find("li").removeClass("active");
-            dom.addClass("active");
+            self.$element.find("li").removeClass("active");
+            $dom.addClass("active");
             self.switchOpen(self);
         },
 
         //调整目录的展开折叠
         switchOpen: function (self) {
-            $.each(self.element.find("ul").splice(1, self.element.find("ul").length -1), function(i, e) {
+            $.each(self.$element.find("ul").splice(1, self.$element.find("ul").length -1), function(i, e) {
                 if ($(e).find(".active").length === 0 && $(e).prev("li").prop("class").indexOf("active") === -1){
-                    self.animation ? $(e).slideUp("ease") : $(e).hide();
+                    self.options.animation ? $(e).slideUp("ease") : $(e).hide();
                 } else {
-                    self.animation ? $(e).slideDown("ease"): $(e).show();
+                    self.options.animation ? $(e).slideDown("ease"): $(e).show();
                 }
             });
         },
 
-        scrollSmooth: function (target, top) {
+        scrollSmooth: function (target) {
             var self = this,
                 interval,
-                flag = $(window).scrollTop(),
-                distance = target - flag;
+                top = self.$element.parent().parent().offset().top,
+                flag = self.$scrollDom.scrollTop(),
+                distance = target - flag,
+                flagTop = self.options.listen ? self.$scrollDom.offset().top + 15 : top + 15,
+                location = self.options.listen ? flagTop : 15;
 
             if (distance != 0 ) {
                 self.defend = false;
                 interval = setInterval(function () {
                     if ((distance > 0 && target - flag < distance/20) || (distance < 0 && target - flag > distance/20)) {
-                        window.scroll(0, target);
+                        self.options.listen ? self.$scrollDom.scrollTop(target) : window.scroll(0, target);
                         clearInterval(interval);
                         self.defend = true;
                     } else {
+                        top = self.options.listen ? self.$element.parent().parent().offset().top : top;
                         flag += distance/20;
-                        window.scroll(0, flag);
+                        self.options.listen ? self.$scrollDom.scrollTop(flag) : window.scroll(0, flag);
 
                         //网页没有卷曲到指定高度,则停止执行
-                        if (Math.abs(flag - $(window).scrollTop()) > 2) {
+                        if (Math.abs(flag - self.$scrollDom.scrollTop()) > 2) {
                             clearInterval(interval);
                             self.defend = true;
                         }
 
-                        if (top - flag < 15) {
-                            self.element.css({
+                        if (top < flagTop) {
+                            self.$element.parent().css({
                                 "position": "fixed",
-                                "top": "15px"
+                                "top": location + "px"
                             });
                         }
                     }
@@ -187,75 +201,77 @@
         },
 
         //滚动执行事件
-        winScroll: function (containTop) {
+        winScroll: function () {
             var self = this;
 
-            $(window).scroll(function () {
-                self.defend ? self.scrollEvent(containTop) : false;
+            self.$scrollDom.scroll(function () {
+                self.defend ? self.scrollEvent() : false;
             });
         },
 
-        scrollEvent: function (containTop) {
-            //目录树固定
+        //目录树固定
+        scrollEvent: function () {
             var self = this,
-                winTop = $(window).scrollTop(),
-                scrollTop = containTop - winTop;
+                winTop = self.$scrollDom.scrollTop(),
+                scrollTop = self.$element.parent().parent().offset().top,
+                flagTop = self.options.listen ? self.$scrollDom.offset().top + 15 : winTop + 15,
+                location = self.options.listen ? flagTop : 15;
 
-            if (scrollTop < 15) {
-                self.element.css({
+            if (scrollTop < flagTop) {
+                self.$element.parent().css({
                     "position": "fixed",
-                    "top": "15px"
+                    "top": location + "px"
                 });
-            } else if (scrollTop > 15) {
-                self.element.css({
+            } else if (scrollTop > flagTop) {
+                self.$element.parent().css({
                     "position": "relative",
                     "top": "0"
                 });
             }
 
             //遍历查找对应的目录
-            self.$top.forEach(function (e, i) {
-                if (i> 0 && self.$top[i + 1] > winTop + 15 && e <= winTop + 15 ) {
-                    self.changeActive($(self.element).find("li[data-id='" + i + "']"));
-                    return false;
-                } else if (i === 0 && self.$top[0] >= winTop + 15 ) {
-                    self.changeActive($(self.element).find("li[data-id='0']"));
-                    return false;
+            self.top.forEach(function (e, i) {
+                if (i> 0 && winTop < self.top[i + 1] + self.curScroll - 15 && winTop >= e + self.curScroll - 15) {
+                    self.changeActive($(self.$element).find("li[data-id='" + i + "']"));
+                } else if (i === 0 && winTop <= self.top[0] + self.curScroll - 15) {
+                    self.changeActive($(self.$element).find("li[data-id='0']"));
                 }
+
+                return false;
             });
         }
     };
 
-    $.fn['catalog'] = function (data) {
-
+    $.fn['Catalog'] = function (data) {
         var self;
 
         if (typeof data === "object") {
 
             return this.each(function () {
-                new catalog(this, data);
+                new Catalog(this, data);
             });
 
         } else if (data === "refresh") {
             self = $(this).data("cat");
 
-            //数据初始化
-            self.$index = 0;
-            self.$top = [];
-            self.defend = true;
-            self.containTop = self.element.offset().top;
+            if (self) {
+                self.index = 0;
+                self.top = [];
+                self.defend = true;
+                self.curScroll = self.options.listen ? self.$scrollDom.scrollTop() : 0;
 
-            //重新生成节点
-            self.containerInit();
-            self.createElement();
-            self.switchOpen(self);
+                //重新生成节点
+                self.containerInit();
+                self.createElement();
+                self.switchOpen(self);
+                self.scrollEvent();
+            }
 
         } else if (data === "destroy") {
             self = $(this).data("cat");
 
-            $(window).off("scroll");
-            self.element.html("").removeClass("tocify");
+            self.$scrollDom.off("scroll");
+            self.$element.html("").removeClass("tocify");
         }
-
     };
 }));
