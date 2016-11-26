@@ -25,6 +25,7 @@ http://jquery.com/download/
         eg:$(".toc").Catalog({
             container: ".contain",
             animation: false,
+            active: 'active',
             data: [
                 {title: 'h3',item: 'form'},
                 {title: 'h4',item: '.item1'},
@@ -35,8 +36,9 @@ http://jquery.com/download/
             }
         });
 
-    * container: String 内容区的容器selector
-    * listen: String，当页面滚动元素不是window时，传入滚动元素的selector
+    * container: String 内容区的容器selector 默认值body
+    * listen: String 当页面滚动元素不是window时，传入滚动元素的selector
+    * active: String 为导航栏指示游标的class，默认值 'active'
     * data: Array 目录层级结构结构，data的元素个数即为目录的层数，元素所在数组的
     序列即为对应目录所在层级。title是css selector，其所指向的DOM的内容将会作为标题被展示在导航栏中，item所指向的DOM则是导航所对应的内容
     * animation: Boolean 是否启用展开折叠动画
