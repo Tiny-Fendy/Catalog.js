@@ -26,6 +26,7 @@
 }(this, function ($, window) {
     var defaults = {
         container: 'body',
+        active: 'active',
         listen: undefined,
         animation: true,
         data: [
@@ -33,19 +34,31 @@
                 item: "",
                 title: ""
             }
-        ]
+        ],
+        callBack: undefined
     };
 
-    if ($) {
+    if (!$) {
         console.error("Catalog: jQuery should be included before jquery-catalog.js!");
     }
 
     //目录树导航构造函数
-    function Catalog (element, options) {
+    function Catalog(element, options) {
+
+        //将导航栏对象绑定在DOM上方便获取
         $(element).data('cat', this);
+
+        //当前DOM对象
         this.$element = $(element);
-        this.speed = "";
+        this.speed = '';
+
+        //外部绑定事件列表
+        this.event = {};
+
+        //导航栏配置参数
         this.options = $.extend({}, defaults, options);
+
+        //程序执行开始
         this.init();
     }
 
@@ -56,9 +69,17 @@
 
             //初始化变量
             self.index = 0;
+
+            //每一个获取到的元素到顶端的距离
             self.top = [];
+
+            //是否执行滚动事件，默认执行
             self.defend = true;
+
+            //页面中滚动元素
             self.$scrollDom = self.options.listen ? $(self.options.listen) : $(window);
+
+            //内容区到顶端的距离
             self.exOffsetTop = $(self.options.container).offset().top;
             self.curScroll = self.options.listen ? self.$scrollDom.scrollTop() : 0;
 
@@ -66,6 +87,11 @@
             self.createElement();
             self.bindEvent();
             self.winScroll();
+
+            //初始化完成，执行回调函数
+            if (self.options.callBack && typeof self.options.callBack === 'function') {
+                self.options.callBack();
+            }
         },
 
         //导航栏初始化
@@ -130,31 +156,33 @@
 
             //点击跳到对应位置
             self.$element.off("click").on("click", 'li', function () {
-                var $dom = $(this),
-                    selector = $dom.data("selector") + "[data-hash='" + $dom.data("id") + "']",
+                var dom = $(this),
+                    selector = dom.data("selector") + "[data-hash='" + dom.data("id") + "']",
                     $bindDom = $(self.options.container).find(selector),
                     bindDomTop = $bindDom.offset().top,
                     target = self.options.listen ? self.$scrollDom.scrollTop() + bindDomTop - 15 : bindDomTop - 15;
 
                 self.defend = false;
-                self.changeActive($dom);
+                self.changeActive(dom);
                 self.scrollSmooth(target);
+                self.trigger('click');
             });
         },
 
         //目录树游标移动
-        changeActive: function ($dom) {
+        changeActive: function (dom) {
             var self = this;
 
-            self.$element.find("li").removeClass("active");
-            $dom.addClass("active");
+            self.$element.find("li").removeClass(self.options.active);
+            dom.addClass(self.options.active);
             self.switchOpen(self);
+            self.trigger('active');
         },
 
         //调整目录的展开折叠
         switchOpen: function (self) {
             $.each(self.$element.find("ul").splice(1, self.$element.find("ul").length -1), function(i, e) {
-                if ($(e).find(".active").length === 0 && $(e).prev("li").prop("class").indexOf("active") === -1){
+                if ($(e).find("." + self.options.active).length === 0 && $(e).prev("li").prop("class").indexOf(self.options.active) === -1){
                     self.options.animation ? $(e).slideUp("ease") : $(e).hide();
                 } else {
                     self.options.animation ? $(e).slideDown("ease"): $(e).show();
@@ -239,6 +267,20 @@
 
                 return false;
             });
+        },
+
+        on: function (name, fn) {
+            this.event[name] = this.event[name] || [];
+            this.event[name].push(fn);
+        },
+
+        trigger: function (name, obj) {
+            var events = this.event[name] || [];
+
+            Array.prototype.shift.call(arguments);
+            for (var i = 0;i < events.length;i++) {
+                events[i].call(this, arguments);
+            }
         }
     };
 
@@ -272,6 +314,8 @@
 
             self.$scrollDom.off("scroll");
             self.$element.html("").removeClass("tocify");
+        } else {
+            return $(this).data("cat");
         }
     };
 }));
