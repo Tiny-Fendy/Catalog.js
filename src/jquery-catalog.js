@@ -193,7 +193,7 @@
         scrollSmooth: function (target) {
             var self = this,
                 interval,
-                top = self.$element.parent().parent().offset().top,
+                top = self.$element.parent().offset().top,
                 flag = self.$scrollDom.scrollTop(),
                 distance = target - flag,
                 flagTop = self.options.listen ? self.$scrollDom.offset().top + 15 : top + 15,
@@ -207,7 +207,7 @@
                         clearInterval(interval);
                         self.defend = true;
                     } else {
-                        top = self.options.listen ? self.$element.parent().parent().offset().top : top;
+                        top = self.options.listen ? self.$element.parent().offset().top : top;
                         flag += distance/20;
                         self.options.listen ? self.$scrollDom.scrollTop(flag) : window.scroll(0, flag);
 
@@ -218,7 +218,7 @@
                         }
 
                         if (top < flagTop) {
-                            self.$element.parent().css({
+                            self.$element.css({
                                 "position": "fixed",
                                 "top": location + "px"
                             });
@@ -241,17 +241,17 @@
         scrollEvent: function () {
             var self = this,
                 winTop = self.$scrollDom.scrollTop(),
-                scrollTop = self.$element.parent().parent().offset().top,
+                scrollTop = self.$element.parent().offset().top,
                 flagTop = self.options.listen ? self.$scrollDom.offset().top + 15 : winTop + 15,
                 location = self.options.listen ? flagTop : 15;
 
             if (scrollTop < flagTop) {
-                self.$element.parent().css({
+                self.$element.css({
                     "position": "fixed",
                     "top": location + "px"
                 });
             } else if (scrollTop > flagTop) {
-                self.$element.parent().css({
+                self.$element.css({
                     "position": "relative",
                     "top": "0"
                 });
