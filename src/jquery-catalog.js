@@ -215,9 +215,7 @@
                         if (Math.abs(flag - self.$scrollDom.scrollTop()) > 2) {
                             clearInterval(interval);
                             self.defend = true;
-                        }
-
-                        if (top < flagTop) {
+                        } else if (top < flagTop) {
                             self.$element.css({
                                 "position": "fixed",
                                 "top": location + "px"
